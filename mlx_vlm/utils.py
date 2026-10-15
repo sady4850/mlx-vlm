@@ -873,6 +873,18 @@ def get_model_path(
     return model_path
 
 
+def _params_to_materialize(model: nn.Module):
+    # MLX_VLM_LAZY_VISION=1 leaves the vision tower unevaluated: its weights
+    # stay on disk until the first image request evaluates them, which saves
+    # its whole size for text-only clients.
+    skip_vision = os.environ.get("MLX_VLM_LAZY_VISION") == "1"
+    return [
+        p
+        for k, p in tree_flatten(model.parameters())
+        if not (skip_vision and k.startswith("vision_tower."))
+    ]
+
+
 def load_model(model_path: Path, lazy: bool = False, **kwargs) -> nn.Module:
     """
     Load and initialize the model from a given path.
@@ -1172,7 +1184,7 @@ python -m mlx_vlm.convert --hf-path <local_dir> --mlx-path <mlx_dir>
         lazy = requested_lazy
 
     if not lazy:
-        mx.eval(model.parameters())
+        mx.eval(_params_to_materialize(model))
 
     model.model_path = model_path
     model.eval()

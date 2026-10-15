@@ -162,6 +162,9 @@ def apply_inference_env(cfg: dict) -> None:
     )
     set_or_unset("APC_DISK_PATH", os.path.expanduser(disk_path))
     set_or_unset("MLX_VLM_NGRAM_MAX", cfg.get("ngram_max"))
+    # Junie sends text only: keep the vision tower on disk until an image
+    # actually arrives instead of holding it resident (~0.9 GB for Qwen3.6).
+    os.environ["MLX_VLM_LAZY_VISION"] = "1"
     # Always serialize request processing: the multi-request batching paths
     # are undertested with kv-bits, and Junie's traffic is sequential anyway.
     # Deliberately not configurable — hardcoded, ignoring any config value.

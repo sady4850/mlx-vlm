@@ -1759,3 +1759,25 @@ class TestResolveVideoSampling:
         }
         resolve_video_sampling(SimpleNamespace(), kwargs)
         assert kwargs == {"temperature": 0.7}
+
+
+@pytest.mark.parametrize("flag, vision_evaluated", [("1", False), (None, True)])
+def test_lazy_vision_leaves_vision_tower_unevaluated(
+    monkeypatch, flag, vision_evaluated
+):
+    from mlx_vlm.utils import _params_to_materialize
+
+    class Tiny(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.vision_tower = nn.Linear(4, 4)
+            self.language_model = nn.Linear(4, 4)
+
+    if flag is None:
+        monkeypatch.delenv("MLX_VLM_LAZY_VISION", raising=False)
+    else:
+        monkeypatch.setenv("MLX_VLM_LAZY_VISION", flag)
+    model = Tiny()
+    ids = {id(p) for p in _params_to_materialize(model)}
+    assert (id(model.vision_tower.weight) in ids) == vision_evaluated
+    assert id(model.language_model.weight) in ids

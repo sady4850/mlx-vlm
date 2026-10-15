@@ -488,6 +488,11 @@ async def lifespan(app):
         _apply_int8_prefill()
         logger.info("int8 NAX prefill patch applied.")
 
+    cache_limit_gb = os.environ.get("MLX_VLM_CACHE_LIMIT_GB")
+    if cache_limit_gb:
+        mx.set_cache_limit(int(float(cache_limit_gb) * (1 << 30)))
+        logger.info("MLX buffer cache capped at %s GB.", cache_limit_gb)
+
     model_path = os.environ.pop("MLX_VLM_PRELOAD_MODEL", None)
     adapter_path = os.environ.pop("MLX_VLM_PRELOAD_ADAPTER", None)
     if model_path:

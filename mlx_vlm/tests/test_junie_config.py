@@ -110,6 +110,7 @@ def test_launcher_builds_worker_settings(monkeypatch, tmp_path):
     assert os.environ["MLX_VLM_NGRAM_MAX"] == "6"
     assert os.environ["MLX_VLM_MAX_CONCURRENT_REQUESTS"] == "1"
     assert os.environ["MLX_VLM_LAZY_VISION"] == "1"
+    assert os.environ["MLX_VLM_CACHE_LIMIT_GB"] == "1.0"
     # pin_stable_prefix (default 5) is both the enable flag and the disk
     # snapshot cap.
     assert os.environ["MLX_VLM_PIN_STABLE_PREFIX"] == "5"

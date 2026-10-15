@@ -162,6 +162,7 @@ def apply_inference_env(cfg: dict) -> None:
     )
     set_or_unset("APC_DISK_PATH", os.path.expanduser(disk_path))
     set_or_unset("MLX_VLM_NGRAM_MAX", cfg.get("ngram_max"))
+    set_or_unset("MLX_VLM_CACHE_LIMIT_GB", cfg.get("mlx_cache_limit_gb"))
     # Junie sends text only: keep the vision tower on disk until an image
     # actually arrives instead of holding it resident (~0.9 GB for Qwen3.6).
     os.environ["MLX_VLM_LAZY_VISION"] = "1"

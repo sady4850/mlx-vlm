@@ -101,6 +101,11 @@ DEFAULT_CONFIG = {
     # faster disk or a separate volume.
     "apc_disk_path": None,
     "ngram_max": 8,
+    # Cap (GB) on MLX's buffer cache. Without it, freed GPU buffers pile up
+    # for reuse until the cache fills whatever the model left free, so
+    # memory saved elsewhere never reaches the system or a longer context.
+    # null keeps MLX's default (no cap beyond its memory limit).
+    "mlx_cache_limit_gb": 1.0,
     # Daemon-side supervisor tuning: how long to wait for the worker to
     # start, how long a single proxied request may run before the daemon
     # gives up and restarts the worker, and the health-probe cadence. Keep
@@ -218,6 +223,12 @@ _VALIDATORS = {
     "apc_max_growing_sessions": _is_int_in(0, 64),
     "apc_disk_path": lambda value: value is None or isinstance(value, str),
     "ngram_max": _is_int_in(1, 1024),
+    "mlx_cache_limit_gb": lambda value: value is None
+    or (
+        isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and value >= 0
+    ),
     "startup_timeout_s": _is_positive_number,
     "request_timeout_s": _is_positive_number,
     "startup_probe_interval_s": _is_positive_number,

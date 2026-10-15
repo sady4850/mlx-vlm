@@ -3262,9 +3262,10 @@ class APCManager:
             1, int(os.environ.get("APC_SESSION_CHECKPOINTS", "8"))
         )
         # Past this fraction of Metal's recommended working set, a store
-        # keeps only its own session in memory and drops the other
-        # unpinned ones (oldest first). On small Macs a branched
-        # conversation otherwise holds two full KV sets. 0 disables.
+        # keeps only its own session in memory and drops the others:
+        # unpinned ones oldest first, then pinned ones already on disk. On
+        # small Macs a branched conversation or a freshly pinned prefix
+        # otherwise holds a second full KV set. 0 disables.
         self._session_memory_fraction = max(
             0.0, float(os.environ.get("APC_SESSION_MEMORY_FRACTION", "0.7"))
         )
@@ -3605,6 +3606,15 @@ class APCManager:
         length = len(token_tuple)
         now = time.time()
         with self.lock:
+            pinned_rows = [
+                (key, sess.token_ids, sess.extra_hash)
+                for key, sess in self._sessions.items()
+                if sess.pinned
+            ]
+        pinned_on_disk = [
+            key for key, ids, eh in pinned_rows if self._exact_on_disk(ids, eh)
+        ]
+        with self.lock:
             pinning = pinned or self._pin_next_session_store
             target: Optional[APCSession] = None
             target_key: Optional[int] = None
@@ -3654,6 +3664,11 @@ class APCManager:
             while len(unpinned) > self._exact_session_max:
                 self._sessions.pop(unpinned.pop(0), None)
             others = [key for key in unpinned if key != target_key]
+            others += [
+                key
+                for key in pinned_on_disk
+                if key != target_key and key in self._sessions
+            ]
             while others and self._session_memory_over_budget():
                 self._sessions.pop(others.pop(0), None)
             target.checkpoints[length] = state_row
@@ -3664,6 +3679,12 @@ class APCManager:
             if target_key in self._sessions:
                 self._sessions.move_to_end(target_key)
         return True
+
+    def _exact_on_disk(self, token_ids: Tuple[int, ...], extra_hash: int) -> bool:
+        if self.disk is None:
+            return False
+        key = _sequence_hash(token_ids, extra_hash, self.block_size)
+        return self.disk.has_exact_or_pending(key)
 
     def _session_memory_over_budget(self) -> bool:
         if self._session_memory_fraction <= 0:

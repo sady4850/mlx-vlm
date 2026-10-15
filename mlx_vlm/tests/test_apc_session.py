@@ -297,10 +297,45 @@ def test_memory_pressure_keeps_only_the_newest_session(monkeypatch, fraction, ke
     b = PREFIX[:8] + [99, 98, 97, 96, 95, 94, 93, 92] + EXT
     apc.store_exact_cache(a, _prefill(lm, a))
     monkeypatch.setattr(
-        mx, "get_active_memory", lambda: mx.device_info()["max_recommended_working_set_size"]
+        mx,
+        "get_active_memory",
+        lambda: mx.device_info()["max_recommended_working_set_size"],
     )
     apc.store_exact_cache(b, _prefill(lm, b))
 
     assert len(apc._sessions) == kept
     rb, lb = apc.lookup_exact_cache(b + SUFFIX)
     assert rb is not None and lb == len(b)
+
+
+class _DiskStub:
+    def __init__(self, on_disk):
+        self.on_disk = on_disk
+
+    def has_exact_or_pending(self, key):
+        return self.on_disk
+
+    def save_exact_cache(self, *args, **kwargs):
+        pass
+
+
+@pytest.mark.parametrize("on_disk, kept", [(True, 1), (False, 2)])
+def test_memory_pressure_drops_pinned_session_only_when_on_disk(
+    monkeypatch, on_disk, kept
+):
+    monkeypatch.setenv("APC_EXACT_SESSIONS", "2")
+    lm = _make_tiny_qwen35()
+    apc = APCManager(num_blocks=64, block_size=16)
+    apc.disk = _DiskStub(on_disk)
+
+    apc.store_exact_cache(PREFIX, _prefill(lm, PREFIX), pinned=True)
+    monkeypatch.setattr(
+        mx,
+        "get_active_memory",
+        lambda: mx.device_info()["max_recommended_working_set_size"],
+    )
+    longer = PREFIX + EXT
+    apc.store_exact_cache(longer, _prefill(lm, longer))
+
+    assert len(apc._sessions) == kept
+    assert any(not s.pinned for s in apc._sessions.values())

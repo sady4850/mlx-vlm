@@ -285,3 +285,22 @@ def test_checkpoint_store_clones_the_live_cache_once(monkeypatch):
     restored, plen = apc.lookup_exact_cache(longer + SUFFIX)
     assert restored is not None and plen == len(longer)
 
+
+@pytest.mark.parametrize("fraction, kept", [("0.7", 1), ("0", 2)])
+def test_memory_pressure_keeps_only_the_newest_session(monkeypatch, fraction, kept):
+    monkeypatch.setenv("APC_EXACT_SESSIONS", "2")
+    monkeypatch.setenv("APC_SESSION_MEMORY_FRACTION", fraction)
+    lm = _make_tiny_qwen35()
+    apc = APCManager(num_blocks=64, block_size=16)
+
+    a = PREFIX
+    b = PREFIX[:8] + [99, 98, 97, 96, 95, 94, 93, 92] + EXT
+    apc.store_exact_cache(a, _prefill(lm, a))
+    monkeypatch.setattr(
+        mx, "get_active_memory", lambda: mx.device_info()["max_recommended_working_set_size"]
+    )
+    apc.store_exact_cache(b, _prefill(lm, b))
+
+    assert len(apc._sessions) == kept
+    rb, lb = apc.lookup_exact_cache(b + SUFFIX)
+    assert rb is not None and lb == len(b)

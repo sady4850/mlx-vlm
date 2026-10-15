@@ -3261,6 +3261,13 @@ class APCManager:
         self._session_checkpoint_max = max(
             1, int(os.environ.get("APC_SESSION_CHECKPOINTS", "8"))
         )
+        # Past this fraction of Metal's recommended working set, a store
+        # keeps only its own session in memory and drops the other
+        # unpinned ones (oldest first). On small Macs a branched
+        # conversation otherwise holds two full KV sets. 0 disables.
+        self._session_memory_fraction = max(
+            0.0, float(os.environ.get("APC_SESSION_MEMORY_FRACTION", "0.7"))
+        )
         self._sessions: "OrderedDict[int, APCSession]" = OrderedDict()
         self._session_seq = 0
         self._pin_next_session_store = False
@@ -3646,6 +3653,9 @@ class APCManager:
             ]
             while len(unpinned) > self._exact_session_max:
                 self._sessions.pop(unpinned.pop(0), None)
+            others = [key for key in unpinned if key != target_key]
+            while others and self._session_memory_over_budget():
+                self._sessions.pop(others.pop(0), None)
             target.checkpoints[length] = state_row
             target.checkpoints.move_to_end(length)
             while len(target.checkpoints) > self._session_checkpoint_max:
@@ -3654,6 +3664,15 @@ class APCManager:
             if target_key in self._sessions:
                 self._sessions.move_to_end(target_key)
         return True
+
+    def _session_memory_over_budget(self) -> bool:
+        if self._session_memory_fraction <= 0:
+            return False
+        try:
+            limit = mx.device_info()["max_recommended_working_set_size"]
+        except Exception:
+            return False
+        return mx.get_active_memory() > self._session_memory_fraction * limit
 
     def pin_next_session_store(self) -> None:
         """Mark the next stored exact session as pinned (never LRU-evicted).

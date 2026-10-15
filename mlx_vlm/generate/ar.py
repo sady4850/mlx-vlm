@@ -2064,6 +2064,7 @@ class PromptProcessingBatch:
                         token_ids,
                         prompt_cache,
                         extra_hash=extra_hash,
+                        owned=True,
                         **store_kwargs,
                     )
                 else:
@@ -2071,6 +2072,7 @@ class PromptProcessingBatch:
                         token_ids,
                         prompt_cache,
                         extra_hash=extra_hash,
+                        owned=True,
                         **store_kwargs,
                     )
                 meta[done_key] = True
@@ -2134,6 +2136,7 @@ class PromptProcessingBatch:
                 full_ids[:pos],
                 prompt_cache,
                 extra_hash=meta.get("extra_hash", 0),
+                owned=True,
             ):
                 stored += 1
                 meta["_last_store_len"] = pos
@@ -2403,6 +2406,7 @@ class PromptProcessingBatch:
                                 meta["full_input_ids"],
                                 prompt_cache,
                                 extra_hash=meta.get("extra_hash", 0),
+                                owned=True,
                             )
                         self._apc_manager.release(meta.get("apc_blocks", []))
                     else:

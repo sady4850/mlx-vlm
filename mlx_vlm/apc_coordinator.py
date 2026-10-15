@@ -149,16 +149,21 @@ class APCCoordinator:
         extra_hash: int = 0,
         batch_idx: Optional[int] = None,
         pinned: bool = False,
+        owned: bool = False,
     ) -> bool:
         if not self.enabled or not self.is_checkpoint:
             return False
         from .apc import snapshot_prompt_cache_row
 
-        snapshot = snapshot_prompt_cache_row(prompt_cache, batch_idx or 0)
+        snapshot = (
+            prompt_cache
+            if owned
+            else snapshot_prompt_cache_row(prompt_cache, batch_idx or 0)
+        )
         if snapshot is None:
             return False
         return self.manager.store_exact_cache(
-            token_ids, snapshot, extra_hash=extra_hash, pinned=pinned
+            token_ids, snapshot, extra_hash=extra_hash, pinned=pinned, owned=True
         )
 
     def commit(

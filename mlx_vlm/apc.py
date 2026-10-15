@@ -3803,8 +3803,13 @@ class APCManager:
         *,
         extra_hash: int = 0,
         pinned: bool = False,
+        owned: bool = False,
     ) -> bool:
         """Store a full prompt-cache snapshot for exact-prefix reuse.
+
+        With ``owned`` the caller hands over a private snapshot (the output of
+        ``snapshot_prompt_cache_row``) and it is stored as is instead of being
+        cloned a second time.
 
         With ``pinned`` the stored session is exempt from LRU eviction and
         the snapshot is persisted to the disk tier (the same treatment the
@@ -3826,7 +3831,11 @@ class APCManager:
             # store as the pinned seed prefix, which is the only snapshot
             # persisted to disk under APC_DISK_EXACT_SCOPE=pinned.
             pin_pending = pinned or self._pin_next_session_store
-        copied = _clone_prompt_cache_for_apc(prompt_cache, quantize_kv=True)
+        copied = (
+            list(prompt_cache)
+            if owned
+            else _clone_prompt_cache_for_apc(prompt_cache, quantize_kv=True)
+        )
         if copied is None:
             types = [type(c).__name__ for c in prompt_cache]
             logger.warning(

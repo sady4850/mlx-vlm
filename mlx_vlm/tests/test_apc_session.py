@@ -256,3 +256,32 @@ def test_stats_snapshot_reports_sessions():
     assert info["anchor_tokens"] == len(PREFIX)
     assert info["checkpoints"] == [len(PREFIX)]
     assert info["kv_bytes"] > 0
+
+
+def test_checkpoint_store_clones_the_live_cache_once(monkeypatch):
+    import mlx_vlm.apc as apc_module
+
+    lm = _make_tiny_qwen35()
+    apc = APCManager(num_blocks=64, block_size=16)
+    coordinator = apc.coordinator(lm)
+    clones = []
+    clone = apc_module._clone_prompt_cache_for_apc
+
+    def counting_clone(*args, **kwargs):
+        clones.append(1)
+        return clone(*args, **kwargs)
+
+    monkeypatch.setattr(apc_module, "_clone_prompt_cache_for_apc", counting_clone)
+
+    assert coordinator.store_checkpoint(PREFIX, _prefill(lm, PREFIX))
+    assert len(clones) == 1
+
+    clones.clear()
+    longer = PREFIX + EXT
+    snapshot = apc_module.snapshot_prompt_cache_row(_prefill(lm, longer))
+    assert coordinator.store_checkpoint(longer, snapshot, owned=True)
+    assert len(clones) == 1
+
+    restored, plen = apc.lookup_exact_cache(longer + SUFFIX)
+    assert restored is not None and plen == len(longer)
+
